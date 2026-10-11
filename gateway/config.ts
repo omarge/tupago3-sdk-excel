@@ -11,6 +11,8 @@ export interface GatewayConfig {
   allowInsecure: boolean;
   rateLimitMax: number;
   rateLimitWindowMs: number;
+  loginRateLimitMax: number;
+  loginRateLimitWindowMs: number;
   requestTimeoutMs: number;
   maxBodyBytes: number;
   staticDir?: string;
@@ -36,6 +38,8 @@ export function loadConfig(): GatewayConfig {
     allowInsecure,
     rateLimitMax: Number(process.env.GATEWAY_RATE_LIMIT_MAX ?? "60"),
     rateLimitWindowMs: Number(process.env.GATEWAY_RATE_LIMIT_WINDOW_MS ?? "60000"),
+    loginRateLimitMax: Number(process.env.GATEWAY_LOGIN_RATE_LIMIT_MAX ?? "10"),
+    loginRateLimitWindowMs: Number(process.env.GATEWAY_LOGIN_RATE_LIMIT_WINDOW_MS ?? "60000"),
     requestTimeoutMs: Number(process.env.GATEWAY_REQUEST_TIMEOUT_MS ?? "10000"),
     maxBodyBytes: Number(process.env.GATEWAY_MAX_BODY_BYTES ?? "16384"),
   };

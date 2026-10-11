@@ -19,6 +19,8 @@ const config: GatewayConfig = {
   allowInsecure: true,
   rateLimitMax: 1000,
   rateLimitWindowMs: 60000,
+  loginRateLimitMax: 1000,
+  loginRateLimitWindowMs: 60000,
   requestTimeoutMs: 5000,
   maxBodyBytes: 16384,
 };

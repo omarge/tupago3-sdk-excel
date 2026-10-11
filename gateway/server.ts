@@ -2,10 +2,11 @@ import http from "node:http";
 import https from "node:https";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import selfsigned from "selfsigned";
 import { createApp, type AuthResult } from "./app.js";
 import { createProxy } from "./proxy.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, type GatewayConfig } from "./config.js";
 import { redactSecrets, safeLog } from "../src/security/redact.js";
 
 async function backend3Authenticate(authUrl: string, username: string, password: string): Promise<AuthResult> {
@@ -47,6 +48,8 @@ function decodeClaims(token: string): { exp?: number; sub?: string; roles?: stri
 
 function main(): void {
   const config = loadConfig();
+  validateProductionConfig(config);
+
   const proxy = createProxy(config.grpcTarget, config.requestTimeoutMs);
   const distDir = join(process.cwd(), "dist");
   const app = createApp(
@@ -78,4 +81,21 @@ function describe(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-main();
+// G3: prevent a development/permissive configuration from being shipped as production.
+// In production the gateway MUST terminate TLS (GATEWAY_TLS=1) and MUST NOT run with the
+// insecure dev flag. Throws (does not exit) so it is unit-testable; main() converts the
+// throw into a hard refusal to boot with a clear message.
+export function validateProductionConfig(config: GatewayConfig): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (!config.enableTls) {
+    throw new Error("NODE_ENV=production requires GATEWAY_TLS=1 (HTTPS termination).");
+  }
+  if (config.allowInsecure) {
+    throw new Error("NODE_ENV=production must not set GATEWAY_ALLOW_INSECURE=1.");
+  }
+}
+
+// Only bootstrap when executed directly (not when imported by tests).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

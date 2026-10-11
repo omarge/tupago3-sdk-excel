@@ -77,13 +77,23 @@ export function createApp(config: GatewayConfig, deps: AppDeps): express.Express
   });
   app.use("/v1", limiter);
 
+  // Dedicated, stricter limiter for the login endpoint to blunt credential brute-force.
+  // (G3: abuse protection for login, independent of the general read limiter.)
+  const loginLimiter = rateLimit({
+    windowMs: config.loginRateLimitWindowMs,
+    max: config.loginRateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "RATE_LIMITED", message: "Demasiados intentos de inicio de sesión. Intente más tarde." },
+  });
+
   // ---- Health (diagnostics only, no secrets) ----
   app.get("/healthz", (_req, res) => {
     res.json({ status: "ok", service: "tupago3-excel-gateway", readOnly: true });
   });
 
   // ---- Login pass-through to backend3 (no token minting in the gateway) ----
-  app.post("/v1/login", async (req: Request, res: Response) => {
+  app.post("/v1/login", loginLimiter, async (req: Request, res: Response) => {
     const { username, password } = req.body ?? {};
     if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
       res.status(400).json({ error: "INVALID_ARGUMENT", message: "username y password requeridos." });
@@ -151,7 +161,8 @@ export function createApp(config: GatewayConfig, deps: AppDeps): express.Express
 
   app.get("/v1/catalogo/:clave", requireAuth, async (req: Request, res: Response) => {
     try {
-      const data = await deps.proxy.getCatalogo(req.params.clave, (req as any).authToken, withTimeout(req));
+      const clave = assertSafeIdentifier("clave", req.params.clave, 20);
+      const data = await deps.proxy.getCatalogo(clave, (req as any).authToken, withTimeout(req));
       res.json(data);
     } catch (e) {
       return sendError(res, e);
@@ -166,7 +177,8 @@ export function createApp(config: GatewayConfig, deps: AppDeps): express.Express
       return;
     }
     try {
-      const view = await deps.proxy.getQrStatus(idc, idCuenta, (req as any).authToken, withTimeout(req));
+      const safeIdc = assertSafeIdentifier("idc", idc, 40);
+      const view = await deps.proxy.getQrStatus(safeIdc, idCuenta, (req as any).authToken, withTimeout(req));
       res.json({ json: view.json() });
     } catch (e) {
       return sendError(res, e);
@@ -181,7 +193,8 @@ export function createApp(config: GatewayConfig, deps: AppDeps): express.Express
       return;
     }
     try {
-      const view = await deps.proxy.getTelefonicoStatus(idc, idCuenta, (req as any).authToken, withTimeout(req));
+      const safeIdc = assertSafeIdentifier("idc", idc, 40);
+      const view = await deps.proxy.getTelefonicoStatus(safeIdc, idCuenta, (req as any).authToken, withTimeout(req));
       res.json({ json: view.json() });
     } catch (e) {
       return sendError(res, e);
@@ -231,4 +244,18 @@ export function decodeJwtClaims(token: string): { exp?: number; sub?: string } |
   } catch {
     return null;
   }
+}
+
+// Strict allow-list validation for identifier parameters sent to backend3 over gRPC.
+// Rejects anything outside [A-Za-z0-9_-] so a caller cannot inject control characters,
+// path/query metacharacters, or oversized values into the upstream call (G3: strict input
+// validation; defense against abuse / malformed requests).
+export function assertSafeIdentifier(name: string, value: string, maxLen = 40): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > maxLen) {
+    throw new GatewayError(400, "INVALID_ARGUMENT", `El parámetro '${name}' tiene longitud inválida.`);
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new GatewayError(400, "INVALID_ARGUMENT", `El parámetro '${name}' contiene caracteres no permitidos.`);
+  }
+  return value;
 }

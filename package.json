@@ -24,9 +24,9 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@tupago/tupago3-sdk-typescript": "file:./vendor/tupago3-sdk-typescript",
     "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "@tupago/tupago3-sdk-typescript": "file:./vendor/tupago3-sdk-typescript"
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "9.13.0",
@@ -37,6 +37,7 @@
     "@types/node": "22.8.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    "@types/selfsigned": "^2.0.4",
     "@vitejs/plugin-react": "4.3.3",
     "cors": "2.8.5",
     "eslint": "9.13.0",

@@ -20,6 +20,9 @@ export class GatewayError extends Error {
 }
 
 function mapError(e: unknown): GatewayError {
+  // Preserve already-constructed gateway errors (e.g. from parseBigInt/input validation) so
+  // their status codes (400 INVALID_ARGUMENT, etc.) are not silently downgraded to 502.
+  if (e instanceof GatewayError) return e;
   if (e instanceof TupagoException) {
     const code = typeof e.code === "number" ? e.code : 2;
     switch (code) {
