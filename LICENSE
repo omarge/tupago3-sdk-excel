@@ -1,0 +1,31 @@
+TUPAGO3 SDK EXCEL — CONTROLLED INTERNAL DISTRIBUTION LICENSE
+
+Copyright (c) 2026 TuPago3. All rights reserved.
+
+1. SCOPE
+   This software (the "Software") — consisting of the Microsoft Office Add-in
+   (Task Pane) and its associated secure BFF gateway — is licensed for CONTROLLED
+   INTERNAL DISTRIBUTION only within authorized TuPago3 environments.
+
+2. PERMITTED USE
+   Authorized personnel may install, configure and operate the Software solely to
+   consume the four read-only TuPago3 operations: GetCliente, GetCatalogo,
+   GetQrStatus and GetTelefonicoStatus.
+
+3. PROHIBITED USE
+   - No financial Create operations (CreateQr, CreateTelefonico) are provided or
+     permitted by this Software.
+   - No use of the Software to perform, initiate or reconcile real financial
+     movements without separate explicit authorization.
+   - No redistribution outside the authorized internal distribution channels.
+   - No publication to public marketplaces (e.g. Microsoft AppSource) without
+     explicit written authorization.
+
+4. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+5. SECURITY
+   Credentials, JWTs and secrets must never be embedded in the workbook, logs or
+   the distributed package. See SECURITY notes in README.md.
+
+See LICENSE file in repository root for the authoritative text.

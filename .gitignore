@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-package/
+coverage/
+*.log
+.DS_Store
+.lab/
+gateway/certs/
+*.local
+.env
+.env.*
+package-lock.json.bak

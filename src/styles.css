@@ -1,0 +1,214 @@
+:root {
+  --tupago-bg: #f3f2f1;
+  --tupago-panel: #ffffff;
+  --tupago-border: #e1dfdd;
+  --tupago-text: #323130;
+  --tupago-subtle: #605e5c;
+  --tupago-accent: #0f6cbd;
+  --tupago-accent-hover: #115ea3;
+  --tupago-danger: #a4262c;
+  --tupago-success: #107c10;
+  --tupago-warn: #797673;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "FabricMDL2Icons", system-ui, -apple-system, sans-serif;
+  background: var(--tupago-bg);
+  color: var(--tupago-text);
+  font-size: 13px;
+}
+
+#app-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: var(--tupago-accent);
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-header .badge {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.app-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--tupago-border);
+  background: var(--tupago-panel);
+}
+
+.app-tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 6px;
+  cursor: pointer;
+  color: var(--tupago-subtle);
+  font-size: 12px;
+  border-bottom: 2px solid transparent;
+}
+
+.app-tabs button.active {
+  color: var(--tupago-accent);
+  border-bottom-color: var(--tupago-accent);
+  font-weight: 600;
+}
+
+.app-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-weight: 600;
+  color: var(--tupago-subtle);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+  padding: 7px 8px;
+  border: 1px solid var(--tupago-border);
+  border-radius: 3px;
+  font-size: 13px;
+  width: 100%;
+}
+
+input:focus {
+  outline: 2px solid var(--tupago-accent);
+  border-color: var(--tupago-accent);
+}
+
+.btn {
+  background: var(--tupago-accent);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn:hover {
+  background: var(--tupago-accent-hover);
+}
+
+.btn.secondary {
+  background: #fff;
+  color: var(--tupago-accent);
+  border: 1px solid var(--tupago-accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.result {
+  background: var(--tupago-panel);
+  border: 1px solid var(--tupago-border);
+  border-radius: 4px;
+  padding: 10px;
+  white-space: pre-wrap;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.alert {
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.alert.error {
+  background: #fdf3f4;
+  color: var(--tupago-danger);
+  border: 1px solid #f3c7ca;
+}
+
+.alert.success {
+  background: #f1f9f1;
+  color: var(--tupago-success);
+  border: 1px solid #bfe6bf;
+}
+
+.alert.info {
+  background: #f0f6fc;
+  color: var(--tupago-accent);
+  border: 1px solid #c8e0f5;
+}
+
+.identity {
+  font-size: 12px;
+  color: #fff;
+}
+
+.identity b {
+  color: #fff;
+}
+
+.section-title {
+  font-weight: 600;
+  color: var(--tupago-text);
+  margin: 0;
+  font-size: 13px;
+}
+
+.hint {
+  color: var(--tupago-subtle);
+  font-size: 11px;
+}
+
+table.mini {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+table.mini th,
+table.mini td {
+  border: 1px solid var(--tupago-border);
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.spinner {
+  font-size: 12px;
+  color: var(--tupago-subtle);
+}

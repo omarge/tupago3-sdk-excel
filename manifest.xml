@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/2021/manifest"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/2021"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverview"
+           xsi:type="TaskPaneApp">
+  <Id>00000000-0000-0000-0000-0000000000a1</Id>
+  <Version>0.1.0</Version>
+  <ProviderName>TuPago3 (controlled internal distribution)</ProviderName>
+  <DefaultLocale>es-419</DefaultLocale>
+  <DisplayName DefaultValue="TuPago3 Excel" />
+  <Description DefaultValue="Complemento de Excel para consultar operaciones de solo lectura de TuPago3 (cliente, catálogo, estados QR y telefónico) de forma segura." />
+  <IconUrl DefaultValue="https://localhost:8443/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:8443/assets/icon-80.png" />
+  <AppDomains>
+    <AppDomain>https://localhost:8443</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="ExcelApi" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:8443/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverview" xsi:type="VersionOverridesV1_0">
+    <Description resid="residDesc" />
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.1">
+        <bt:Set Name="ExcelApi" MinVersion="1.1" />
+      </bt:Sets>
+    </Requirements>
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="residGetStartedTitle" />
+            <Description resid="residGetStartedDesc" />
+            <LearnMoreUrl resid="residLearnMore" />
+          </GetStarted>
+          <FunctionFile resid="residFunctionFile" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="grpTupago">
+                <Label resid="residGroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="residIcon16" />
+                  <bt:Image size="32" resid="residIcon32" />
+                  <bt:Image size="80" resid="residIcon80" />
+                </Icon>
+                <Control xsi:type="Button" id="btnTupago">
+                  <Label resid="residButtonLabel" />
+                  <Supertip>
+                    <Title resid="residButtonTitle" />
+                    <Description resid="residButtonDesc" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="residIcon16" />
+                    <bt:Image size="32" resid="residIcon32" />
+                    <bt:Image size="80" resid="residIcon80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>txTupago</TaskpaneId>
+                    <SourceLocation resid="residTaskpane" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="residIcon16" DefaultValue="https://localhost:8443/assets/icon-16.png" />
+        <bt:Image id="residIcon32" DefaultValue="https://localhost:8443/assets/icon-32.png" />
+        <bt:Image id="residIcon80" DefaultValue="https://localhost:8443/assets/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="residTaskpane" DefaultValue="https://localhost:8443/taskpane.html" />
+        <bt:Url id="residFunctionFile" DefaultValue="https://localhost:8443/functions.html" />
+        <bt:Url id="residLearnMore" DefaultValue="https://localhost:8443/help.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="residGroupLabel" DefaultValue="TuPago3" />
+        <bt:String id="residButtonLabel" DefaultValue="TuPago3" />
+        <bt:String id="residButtonTitle" DefaultValue="Abrir TuPago3" />
+        <bt:String id="residGetStartedTitle" DefaultValue="Bienvenido a TuPago3 Excel" />
+        <bt:String id="residDesc" DefaultValue="Consultas seguras de TuPago3 en Excel" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="residButtonDesc" DefaultValue="Consulta cliente, catálogo e estados de pago e impórtalos a Excel." />
+        <bt:String id="residGetStartedDesc" DefaultValue="Inicie sesión, consulte y exporte resultados autorizados a su libro." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

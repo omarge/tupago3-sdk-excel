@@ -1,0 +1,53 @@
+name: CI — TUPAGO3 SDK Excel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Typecheck (frontend + gateway)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Secret scan
+        run: node scripts/secret-scan.mjs
+
+      - name: Unit / Integration / Security / Gateway / Excel tests (T01–T30)
+        run: npm test
+
+      - name: Build add-in bundle
+        run: npm run build
+
+      - name: Verify no Create endpoints in gateway
+        run: npx tsx scripts/verify-no-create.mts
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high || true
+
+      - name: Package (reproducible internal distribution)
+        run: npm run pack
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tupago3-sdk-excel-dist
+          path: dist-package/
+          if-no-files-found: warn

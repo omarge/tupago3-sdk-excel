@@ -1,0 +1,55 @@
+{
+  "name": "@tupago/tupago3-sdk-excel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TUPAGO3 SDK EXCEL — Microsoft Office Add-in (Task Pane) + secure BFF gateway consuming TuPago3 read-only operations from Excel.",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.gateway.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit tests/excel tests/security tests/office",
+    "test:gateway": "vitest run tests/gateway tests/integration",
+    "test:security": "vitest run tests/security tests/gateway",
+    "gateway": "tsx gateway/server.ts",
+    "gateway:build": "tsc -p tsconfig.gateway.json",
+    "pack": "npm run build && node scripts/make-package.mjs",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@tupago/tupago3-sdk-typescript": "file:./vendor/tupago3-sdk-typescript"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.13.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.0.1",
+    "@types/cors": "2.8.17",
+    "@types/express": "4.17.21",
+    "@types/node": "22.8.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.3",
+    "cors": "2.8.5",
+    "eslint": "9.13.0",
+    "express": "4.21.1",
+    "express-rate-limit": "7.4.1",
+    "globals": "15.11.0",
+    "jsdom": "25.0.1",
+    "rimraf": "6.0.1",
+    "selfsigned": "2.0.1",
+    "tsx": "4.19.2",
+    "typescript": "5.6.3",
+    "typescript-eslint": "8.12.2",
+    "vite": "5.4.10",
+    "vitest": "2.1.4"
+  }
+}
