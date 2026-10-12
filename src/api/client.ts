@@ -1,4 +1,5 @@
 import { TupagoApiError, type CatalogoInstitucion, type ClientePerfil, type StatusResult } from "../models/types.js";
+import { isAuthorizedOrigin, normalizeOrigin, DEV_LOCALHOST_ORIGINS, type GatewayOriginPolicy } from "../config/gatewayOrigin.js";
 
 export interface ApiConfig {
   baseUrl: string;
@@ -9,18 +10,32 @@ export class TupagoApiClient {
   constructor(
     private readonly baseUrl: string,
     private readonly getToken: () => string | null,
+    // Defense-in-depth: when a policy is supplied the base URL must be an authorized origin.
+    // Omitting it (legacy/unit tests) defaults to the development localhost allow-list.
+    policy?: GatewayOriginPolicy,
   ) {
-    this.assertSecureEndpoint(baseUrl);
+    const effective = policy ?? { allowedOrigins: [...DEV_LOCALHOST_ORIGINS], devMode: true };
+    this.assertAuthorizedOrigin(baseUrl, effective);
   }
 
-  // Gate G7 / T26: the add-in must never send data to an insecure (plaintext HTTP) endpoint
-  // outside the local laboratory. Only https:// or http://localhost|127.0.0.1 are permitted.
-  private assertSecureEndpoint(url: string): void {
-    if (url.startsWith("https://")) return;
-    if (/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)) return;
-    throw new Error(
-      `Endpoint inseguro rechazado por seguridad: "${url}". Use HTTPS o http://localhost en laboratorio.`,
-    );
+  // Gate R3: the add-in sends credentials/JWT ONLY to an explicitly authorized gateway
+  // origin (canonical scheme://host:port). Arbitrary HTTPS endpoints, even with valid certs,
+  // are rejected; localhost is permitted only under the dev allow-list.
+  private assertAuthorizedOrigin(url: string, policy: GatewayOriginPolicy): void {
+    if (normalizeOrigin(url) === null) {
+      throw new Error(`Origen de gateway inválido rechazado por seguridad: "${url}".`);
+    }
+    if (!isAuthorizedOrigin(url, policy)) {
+      throw new Error(`Origen de gateway NO AUTORIZADO rechazado por seguridad: "${url}".`);
+    }
+  }
+
+  // Redirects are never followed for login or Bearer requests: a redirect to another origin
+  // would leak credentials/JWT to that origin. We fail closed instead.
+  private assertNoRedirect(status: number): void {
+    if (status >= 300 && status < 400) {
+      throw new TupagoApiError("UNAVAILABLE", "Redirección rechazada por seguridad (posible fuga de credenciales/JWT).");
+    }
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -37,6 +52,8 @@ export class TupagoApiClient {
       res = await fetch(`${this.baseUrl}${path}`, {
         ...init,
         headers,
+        // Never follow redirects: a cross-origin redirect would leak the Bearer token.
+        redirect: "manual",
         // Guard against hanging requests (maps to DEADLINE_EXCEEDED in caller layer).
         signal: init?.signal,
       });
@@ -44,6 +61,7 @@ export class TupagoApiClient {
       throw new TupagoApiError("UNAVAILABLE", `No se pudo conectar con el gateway: ${describe(e)}`);
     }
 
+    this.assertNoRedirect(res.status);
     if (res.status === 204) return undefined as T;
     const text = await res.text();
     const body = text ? safeJson(text) : undefined;
@@ -58,7 +76,13 @@ export class TupagoApiClient {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ username, password }),
+      // Never follow redirects: a cross-origin redirect would leak the credentials.
+      redirect: "manual",
     });
+    // Fail closed on any redirect (credentials must never be re-sent to another origin).
+    if (res.status >= 300 && res.status < 400) {
+      throw new TupagoApiError("UNAVAILABLE", "Redirección en login rechazada por seguridad.");
+    }
     const text = await res.text();
     const body = text ? safeJson(text) : undefined;
     if (!res.ok) throw mapHttpError(res.status, body);

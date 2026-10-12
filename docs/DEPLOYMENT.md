@@ -107,6 +107,11 @@ Para distribución, reemplaza `dist-package/manifest.xml` por la versión del do
 
 ## 8. Seguridad
 
+- Origen de gateway autorizado (R3): el add-in solo envía credenciales/JWT a un origen
+  HTTPS explícitamente autorizado en build (`VITE_GATEWAY_URL`). En distribución el origen
+  es fijo y no editable; un cambio en `localStorage` no puede redirigir credenciales. Se
+  rechazan HTTP, userinfo en URL, fragmentos, rutas inesperadas, subdominios engañosos,
+  puertos distintos y redirecciones (login/Bearer no se siguen a otros orígenes).
 - Claves privadas TLS: fuera del repo, solo rutas en env. `.env`/`.env.*` en `.gitignore`.
 - JWT en memoria (`src/auth/session.ts`); no `localStorage` persistente ni logs.
 - CORS allow-list no sustituye autenticación Bearer; rate-limit dedicado en `/v1/login`.

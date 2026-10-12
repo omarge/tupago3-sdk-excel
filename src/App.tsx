@@ -6,6 +6,7 @@ import { buildCatalogoModel, buildClienteModel, buildStatusModel } from "./excel
 import { importModel } from "./excel/officeBridge.js";
 import { RangeOccupiedError } from "./excel/excelOps.js";
 import { isExcelApiSupported, officeReady, getOfficeHost } from "./office/requirements.js";
+import { resolveGatewayUrl, normalizeOrigin, type ResolvedGateway } from "./config/gatewayOrigin.js";
 import type { CatalogoInstitucion, ClientePerfil, StatusResult, WorksheetModel } from "./models/types.js";
 
 type Tab = "sesion" | "clientes" | "estados" | "excel" | "config";
@@ -26,28 +27,43 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("sesion");
-  // Gateway base URL resolution (deployment readiness):
-  //   1) runtime localStorage override (operator/dev), 2) build-time VITE_GATEWAY_URL
-  //      (set for controlled internal distribution to the production domain), 3) lab default.
-  const buildGatewayUrl = (import.meta as any).env?.VITE_GATEWAY_URL;
-  const [gatewayUrl, setGatewayUrl] = useState<string>(
-    (typeof localStorage !== "undefined" && localStorage.getItem("tupago.gatewayUrl")) ||
-      (typeof buildGatewayUrl === "string" && buildGatewayUrl.length > 0 ? buildGatewayUrl : "https://localhost:8443"),
+  // Authorized gateway origin (R3): distribution fixes the origin via VITE_GATEWAY_URL; a
+  // localhost localStorage override is honored ONLY in dev/lab and only if it is itself an
+  // authorized dev origin. A localStorage tamper cannot redirect credentials in distribution.
+  const buildGatewayUrlEnv = (import.meta as any).env?.VITE_GATEWAY_URL as string | undefined;
+  const dev = (import.meta as any).env?.DEV === true;
+  const [resolved, setResolved] = useState<ResolvedGateway>(() =>
+    resolveGatewayUrl({
+      gatewayUrlEnv: buildGatewayUrlEnv,
+      dev,
+      localStorageUrl: typeof localStorage !== "undefined" ? localStorage.getItem("tupago.gatewayUrl") : null,
+    }),
   );
+  const gatewayUrl = resolved.url;
+  const [tab, setTab] = useState<Tab>("sesion");
   const [identity, setIdentity] = useState(sessionStore.getIdentity());
   const [excelOk, setExcelOk] = useState<boolean | null>(null);
   const [status, setStatus] = useState<{ kind: "error" | "success" | "info"; msg: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const client = useMemo(
-    () => new TupagoApiClient(gatewayUrl.replace(/\/$/, ""), () => sessionStore.getToken()),
-    [gatewayUrl],
+    () => new TupagoApiClient(gatewayUrl.replace(/\/$/, ""), () => sessionStore.getToken(), resolved.policy),
+    [gatewayUrl, resolved.policy],
   );
 
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") localStorage.setItem("tupago.gatewayUrl", gatewayUrl);
-  }, [gatewayUrl]);
+  // Dev/lab only: apply a gateway URL change after validating it against the dev allow-list.
+  // In distribution (userConfigurable=false) UI edits are ignored — the origin is build-fixed.
+  const changeGatewayUrl = (candidate: string) => {
+    if (!resolved.policy.devMode) return;
+    const norm = normalizeOrigin(candidate);
+    if (!norm || !resolved.policy.allowedOrigins.includes(norm)) {
+      setStatus({ kind: "error", msg: "Origen de gateway no autorizado. En laboratorio solo se permite localhost HTTPS." });
+      return;
+    }
+    if (typeof localStorage !== "undefined") localStorage.setItem("tupago.gatewayUrl", norm);
+    setStatus(null);
+    setResolved((r) => ({ ...r, url: norm }));
+  };
 
   useEffect(() => {
     setExcelOk(isExcelApiSupported());
@@ -110,7 +126,7 @@ export function App() {
         )}
         {tab === "excel" && <ExcelTab excelOk={excelOk} />}
         {tab === "config" && (
-          <ConfigTab gatewayUrl={gatewayUrl} setGatewayUrl={setGatewayUrl} excelOk={excelOk} host={getOfficeHost()} />
+          <ConfigTab gatewayUrl={gatewayUrl} resolved={resolved} onChangeGatewayUrl={changeGatewayUrl} excelOk={excelOk} host={getOfficeHost()} />
         )}
       </div>
     </div>
@@ -381,12 +397,14 @@ function ExcelTab({ excelOk }: { excelOk: boolean | null }) {
 // ---------------- Config ----------------
 function ConfigTab({
   gatewayUrl,
-  setGatewayUrl,
+  resolved,
+  onChangeGatewayUrl,
   excelOk,
   host,
 }: {
   gatewayUrl: string;
-  setGatewayUrl: (s: string) => void;
+  resolved: ResolvedGateway;
+  onChangeGatewayUrl: (s: string) => void;
   excelOk: boolean | null;
   host: string | null;
 }) {
@@ -403,8 +421,18 @@ function ConfigTab({
     <div className="panel">
       <p className="section-title">Configuración</p>
       <Field label="Endpoint HTTPS del gateway">
-        <input type="text" value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} />
+        <input
+          type="text"
+          value={gatewayUrl}
+          readOnly={!resolved.userConfigurable}
+          onChange={(e) => onChangeGatewayUrl(e.target.value)}
+        />
       </Field>
+      {!resolved.userConfigurable && (
+        <p className="hint">
+          El origen del gateway está fijado por la configuración de despliegue (VITE_GATEWAY_URL) y no es editable.
+        </p>
+      )}
       <button className="btn secondary" onClick={test}>
         Diagnóstico de conectividad
       </button>

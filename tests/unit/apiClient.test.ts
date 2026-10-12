@@ -59,13 +59,16 @@ describe("T11-T16 ErrorMapping", () => {
   });
 });
 
-// T26 — Reject insecure endpoint
+// T26 — Reject insecure / unauthorized endpoint
 describe("T26 RejectInsecureEndpoint", () => {
   it("rejects plaintext HTTP to a non-local host", () => {
-    expect(() => new TupagoApiClient("http://evil.example.com", () => null)).toThrow(/inseguro/i);
+    expect(() => new TupagoApiClient("http://evil.example.com", () => null)).toThrow();
   });
-  it("allows http://localhost in lab", () => {
-    expect(() => new TupagoApiClient("http://localhost:3000", () => null)).not.toThrow();
+  it("rejects plaintext HTTP even to localhost", () => {
+    expect(() => new TupagoApiClient("http://localhost:3000", () => null)).toThrow();
+  });
+  it("allows the authorized https localhost origin (dev default)", () => {
+    expect(() => new TupagoApiClient("https://localhost:8443", () => null)).not.toThrow();
   });
 });
 
