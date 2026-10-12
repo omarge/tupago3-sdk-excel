@@ -126,8 +126,16 @@ describe("T34 ProductionConfigGuard", () => {
     process.env.NODE_ENV = "production";
     expect(() => validateProductionConfig({ ...config, enableTls: true, allowInsecure: true })).toThrow(/ALLOW_INSECURE/);
   });
-  it("allows production with TLS and no insecure flag", () => {
+  it("refuses production without a trusted CA certificate", () => {
     process.env.NODE_ENV = "production";
+    delete process.env.GATEWAY_TLS_CERT;
+    delete process.env.GATEWAY_TLS_KEY;
+    expect(() => validateProductionConfig({ ...config, enableTls: true, allowInsecure: false })).toThrow(/GATEWAY_TLS_CERT/);
+  });
+  it("allows production with TLS, no insecure flag and a trusted CA certificate", () => {
+    process.env.NODE_ENV = "production";
+    process.env.GATEWAY_TLS_CERT = "/etc/tupago/gateway/fullchain.pem";
+    process.env.GATEWAY_TLS_KEY = "/etc/tupago/gateway/privkey.pem";
     expect(() => validateProductionConfig({ ...config, enableTls: true, allowInsecure: false })).not.toThrow();
   });
 });

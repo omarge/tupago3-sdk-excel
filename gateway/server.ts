@@ -1,6 +1,6 @@
 import http from "node:http";
 import https from "node:https";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import selfsigned from "selfsigned";
@@ -65,9 +65,25 @@ function main(): void {
   };
 
   if (config.enableTls) {
-    const attrs = [{ name: "commonName", value: "localhost" }];
-    const pems = selfsigned.generate(attrs, { days: 365, keySize: 2048 });
-    const server = https.createServer({ key: pems.private, cert: pems.cert }, app);
+    // Distribution readiness: a trusted CA certificate can be supplied via file paths
+    // (GATEWAY_TLS_CERT / GATEWAY_TLS_KEY). When absent, fall back to a self-signed
+    // localhost certificate for LAB/development only. Production refuses to boot with
+    // the self-signed fallback (see validateProductionConfig).
+    const certPath = process.env.GATEWAY_TLS_CERT;
+    const keyPath = process.env.GATEWAY_TLS_KEY;
+    let tlsOptions: https.ServerOptions;
+    if (certPath && keyPath) {
+      tlsOptions = { cert: readFileSync(certPath), key: readFileSync(keyPath) };
+      safeLog(`TUPAGO3 Excel gateway using provided TLS certificate (${certPath}).`);
+    } else if (certPath || keyPath) {
+      throw new Error("GATEWAY_TLS=1 requires BOTH GATEWAY_TLS_CERT and GATEWAY_TLS_KEY when a certificate is provided.");
+    } else {
+      const attrs = [{ name: "commonName", value: "localhost" }];
+      const pems = selfsigned.generate(attrs, { days: 365, keySize: 2048 });
+      tlsOptions = { key: pems.private, cert: pems.cert };
+      safeLog("TUPAGO3 Excel gateway using self-signed localhost certificate (LAB only).");
+    }
+    const server = https.createServer(tlsOptions, app);
     server.listen(config.port, onListen);
     server.on("error", (e) => safeLog(redactSecrets(`gateway error: ${describe(e)}`)));
   } else {
@@ -83,8 +99,10 @@ function describe(e: unknown): string {
 
 // G3: prevent a development/permissive configuration from being shipped as production.
 // In production the gateway MUST terminate TLS (GATEWAY_TLS=1) and MUST NOT run with the
-// insecure dev flag. Throws (does not exit) so it is unit-testable; main() converts the
-// throw into a hard refusal to boot with a clear message.
+// insecure dev flag, and MUST use a trusted CA certificate supplied via GATEWAY_TLS_CERT /
+// GATEWAY_TLS_KEY (self-signed localhost fallback is LAB-only and refused in production).
+// Throws (does not exit) so it is unit-testable; main() converts the throw into a hard
+// refusal to boot with a clear message.
 export function validateProductionConfig(config: GatewayConfig): void {
   if (process.env.NODE_ENV !== "production") return;
   if (!config.enableTls) {
@@ -92,6 +110,9 @@ export function validateProductionConfig(config: GatewayConfig): void {
   }
   if (config.allowInsecure) {
     throw new Error("NODE_ENV=production must not set GATEWAY_ALLOW_INSECURE=1.");
+  }
+  if (!process.env.GATEWAY_TLS_CERT || !process.env.GATEWAY_TLS_KEY) {
+    throw new Error("NODE_ENV=production requires GATEWAY_TLS_CERT and GATEWAY_TLS_KEY (trusted CA certificate).");
   }
 }
 

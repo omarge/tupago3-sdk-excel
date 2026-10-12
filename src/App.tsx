@@ -27,8 +27,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 export function App() {
   const [tab, setTab] = useState<Tab>("sesion");
+  // Gateway base URL resolution (deployment readiness):
+  //   1) runtime localStorage override (operator/dev), 2) build-time VITE_GATEWAY_URL
+  //      (set for controlled internal distribution to the production domain), 3) lab default.
+  const buildGatewayUrl = (import.meta as any).env?.VITE_GATEWAY_URL;
   const [gatewayUrl, setGatewayUrl] = useState<string>(
-    (typeof localStorage !== "undefined" && localStorage.getItem("tupago.gatewayUrl")) || "https://localhost:8443",
+    (typeof localStorage !== "undefined" && localStorage.getItem("tupago.gatewayUrl")) ||
+      (typeof buildGatewayUrl === "string" && buildGatewayUrl.length > 0 ? buildGatewayUrl : "https://localhost:8443"),
   );
   const [identity, setIdentity] = useState(sessionStore.getIdentity());
   const [excelOk, setExcelOk] = useState<boolean | null>(null);

@@ -1,0 +1,9 @@
+# Runtime TLS material placed on the deployment host must NEVER enter Git.
+*.pem
+*.crt
+*.cer
+*.key
+*.pfx
+*.p12
+env
+env.*
