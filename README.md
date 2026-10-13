@@ -1,9 +1,9 @@
-# TUPAGO3 SDK EXCEL — Microsoft Office Add-in
+# TUPAGO3 SDK EXCEL — Complemento de Microsoft Office
 
 Complemento de Excel (Task Pane) que consume de forma segura las operaciones de
 **solo lectura** de TuPago3 desde una interfaz Office.js, a través de un BFF
-gateway (puerta de enlace) que traduce las operaciones autorizadas y nunca expone
-el transporte gRPC al navegador de Excel.
+gateway que traduce las operaciones autorizadas y nunca expone el transporte gRPC
+al navegador de Excel.
 
 ## Arquitectura
 
@@ -14,7 +14,7 @@ Excel (Office host)
 TUPAGO3 Excel Add-in  ──HTTPS (Bearer JWT)──►  BFF Gateway (Node/TS)
                                                     │  oficial @tupago/tupago3-sdk-typescript (gRPC)
                                                     ▼
-                                              backend3 (PaymentService, read-only)
+                                              backend3 (PaymentService, solo lectura)
 ```
 
 - **Add-in (frontend):** TypeScript strict + React + Office.js. No conoce gRPC ni secretos.
