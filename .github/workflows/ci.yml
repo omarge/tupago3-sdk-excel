@@ -50,4 +50,4 @@ jobs:
         with:
           name: tupago3-sdk-excel-dist
           path: dist-package/
-          if-no-files-found: warn
+          if-no-files-found: error
