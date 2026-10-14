@@ -1,4 +1,4 @@
-// src/client/TupagoPaymentClient.ts
+// src/transport/grpc.ts
 import * as grpc6 from "@grpc/grpc-js";
 
 // node_modules/@bufbuild/protobuf/dist/esm/wire/varint.js
@@ -1856,15 +1856,15 @@ var ChannelSecurity = class _ChannelSecurity {
    * Convenience: choose transport by target. Loopback -> insecure (local dev); otherwise -> TLS.
    */
   static forTarget(target, tls) {
+    if (tls) {
+      return _ChannelSecurity.tls(tls);
+    }
     if (_ChannelSecurity.isLoopback(hostOf(target))) {
       return _ChannelSecurity.plaintextLoopback(target);
     }
-    if (!tls) {
-      throw new Error(
-        `TLS required for non-loopback target '${target}' (gate G8). Provide a TlsConfig.`
-      );
-    }
-    return _ChannelSecurity.tls(tls);
+    throw new Error(
+      `TLS required for non-loopback target '${target}' (gate G8). Provide a TlsConfig.`
+    );
   }
 };
 function hostOf(target) {
@@ -2112,7 +2112,7 @@ var JsonResponseView = class {
   }
 };
 
-// src/client/TupagoPaymentClient.ts
+// src/transport/grpc.ts
 var SERVICE_NAME = "tupago.api.v1.PaymentService";
 var AUTHORIZATION = "authorization";
 function sleep(ms) {
@@ -2123,7 +2123,7 @@ function validateAmount(field, value) {
     throw new Error(`${field} must be a finite number (wire type is double); got ${value}`);
   }
 }
-var TupagoPaymentClient = class {
+var GrpcPaymentTransport = class {
   client;
   credentialProvider;
   deadlineMillis;
@@ -2141,32 +2141,22 @@ var TupagoPaymentClient = class {
     this.deadlineMillis = opts.deadlineMillis && opts.deadlineMillis > 0 ? opts.deadlineMillis : 1e4;
     this.readRetryPolicy = opts.readRetryPolicy ?? BackoffRetryPolicy.of(3);
   }
-  /** Profile + institution catalog. */
   async getCliente(id, opts) {
     const req = GetClienteRequest.encode({ id }).finish();
     return this.executeRead("GetCliente", req, (b) => ClientePerfil.decode(b), opts);
   }
-  /** Institution catalog by clave_institucion. */
   async getCatalogo(claveInstitucion, opts) {
     const req = GetCatalogoRequest.encode({ claveInstitucion: claveInstitucion ?? "" }).finish();
     return this.executeRead("GetCatalogo", req, (b) => CatalogoInstitucion.decode(b), opts);
   }
-  /** Banxico status (JSON) for a QR. */
   async getQrStatus(idc, idCuenta, opts) {
     const req = GetStatusRequest.encode({ idc: idc ?? "", idCuenta }).finish();
     return this.executeReadView("GetQrStatus", req, opts);
   }
-  /** Banxico status (JSON) for a telefónico. */
   async getTelefonicoStatus(idc, idCuenta, opts) {
     const req = GetStatusRequest.encode({ idc: idc ?? "", idCuenta }).finish();
     return this.executeReadView("GetTelefonicoStatus", req, opts);
   }
-  /**
-   * Creates a QR payment. NEVER auto-retried (gate G4). Idempotency: pass a stable
-   * idempotencyKey; the server dedupes identical keys. A transient transport error is
-   * reclassified as TupagoUnknownOutcomeException (non-retryable) — do NOT blind-resubmit;
-   * reuse the same key or call getQrStatus (correction #3).
-   */
   async createQr(req, opts) {
     validateAmount("monto", req.monto);
     const wire = CreateQrRequest.encode({
@@ -2182,10 +2172,6 @@ var TupagoPaymentClient = class {
     }).finish();
     return this.executeFinancialView("CreateQr", wire, opts);
   }
-  /**
-   * Creates a telefonic payment. NEVER auto-retried (gate G4). Same idempotency/unknown-outcome
-   * policy as createQr.
-   */
   async createTelefonico(req, opts) {
     validateAmount("monto", req.monto);
     const wire = CreateTelefonicoRequest.encode({
@@ -2199,13 +2185,11 @@ var TupagoPaymentClient = class {
     }).finish();
     return this.executeFinancialView("CreateTelefonico", wire, opts);
   }
-  /** Shut down the underlying channel (gate G10). Idempotent. */
   close() {
     if (this.closed) return;
     this.closed = true;
     this.client.close();
   }
-  // ---- internals ----
   async executeRead(method, reqBytes, deserialize, opts) {
     let attempt = 0;
     for (; ; ) {
@@ -2227,11 +2211,6 @@ var TupagoPaymentClient = class {
     const raw = await this.executeRead(method, reqBytes, (b) => JsonResponse.decode(b), opts);
     return new JsonResponseView(raw);
   }
-  /**
-   * Execute a CREATE operation. NoRetryPolicy is enforced (gate G4). Crucially, a transient
-   * transport error on a financial create is reclassified as an UNKNOWN OUTCOME (non-retryable)
-   * so the caller can never blind-resubmit (correction #3).
-   */
   async executeFinancial(method, reqBytes, deserialize, opts) {
     try {
       return await this.unary(method, reqBytes, deserialize, opts);
@@ -2309,22 +2288,625 @@ var TupagoPaymentClient = class {
   }
 };
 
-// src/auth/BearerCallCredentials.ts
+// src/client/TupagoPaymentClient.ts
+var TupagoPaymentClient = class {
+  transport;
+  constructor(opts) {
+    if (!opts.target) throw new Error("target is required");
+    if (!opts.credentials) throw new Error("credentials is required");
+    this.transport = opts.transport ?? new GrpcPaymentTransport({
+      target: opts.target,
+      credentials: opts.credentials,
+      tls: opts.tls,
+      deadlineMillis: opts.deadlineMillis,
+      readRetryPolicy: opts.readRetryPolicy
+    });
+  }
+  /** Profile + institution catalog. */
+  getCliente(id, opts) {
+    return this.transport.getCliente(id, opts);
+  }
+  /** Institution catalog by clave_institucion. */
+  getCatalogo(claveInstitucion, opts) {
+    return this.transport.getCatalogo(claveInstitucion, opts);
+  }
+  /** Banxico status (JSON) for a QR. */
+  getQrStatus(idc, idCuenta, opts) {
+    return this.transport.getQrStatus(idc, idCuenta, opts);
+  }
+  /** Banxico status (JSON) for a telefónico. */
+  getTelefonicoStatus(idc, idCuenta, opts) {
+    return this.transport.getTelefonicoStatus(idc, idCuenta, opts);
+  }
+  /**
+   * Creates a QR payment. NEVER auto-retried (gate G4). Idempotency: pass a stable
+   * idempotencyKey; the server dedupes identical keys. A transient transport error is
+   * reclassified as TupagoUnknownOutcomeException (non-retryable) — do NOT blind-resubmit;
+   * reuse the same key or call getQrStatus (correction #3).
+   */
+  createQr(req, opts) {
+    return this.transport.createQr(req, opts);
+  }
+  /**
+   * Creates a telefonic payment. NEVER auto-retried (gate G4). Same idempotency/unknown-outcome
+   * policy as createQr.
+   */
+  createTelefonico(req, opts) {
+    return this.transport.createTelefonico(req, opts);
+  }
+  /** Shut down the underlying transport (gate G10). Idempotent. */
+  close() {
+    this.transport.close();
+  }
+};
+
+// src/transport/rest.ts
+import * as grpc9 from "@grpc/grpc-js";
+
+// src/transport/types.ts
+function jsonResponseViewFromValue(value) {
+  const raw = { json: JSON.stringify(value === void 0 ? null : value) };
+  return new JsonResponseView(raw);
+}
+
+// src/transport/httpCommon.ts
 import * as grpc7 from "@grpc/grpc-js";
+var NetworkError = class extends Error {
+  cause;
+  constructor(message, cause) {
+    super(message);
+    this.name = "NetworkError";
+    this.cause = cause;
+  }
+};
+function bearerHeader(credentials3) {
+  const token = credentials3.token();
+  if (token == null || token.trim() === "") {
+    throw new TupagoUnauthenticatedException(
+      grpc7.status.UNAUTHENTICATED,
+      "No bearer token supplied by CredentialProvider"
+    );
+  }
+  return { Authorization: `Bearer ${token}` };
+}
+function resolveSignal(opts, deadlineMillis) {
+  const deadline = opts?.deadlineMillis && opts.deadlineMillis > 0 ? opts.deadlineMillis : deadlineMillis;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException("Deadline exceeded", "TimeoutError")), deadline);
+  const onCallerAbort = () => controller.abort();
+  if (opts?.signal) {
+    if (opts.signal.aborted) controller.abort(opts.signal.reason);
+    else opts.signal.addEventListener("abort", onCallerAbort, { once: true });
+  }
+  const release = () => {
+    clearTimeout(timer);
+    if (opts?.signal) opts.signal.removeEventListener("abort", onCallerAbort);
+  };
+  return { signal: controller.signal, release };
+}
+async function rawFetch(url, init, opts, deadlineMillis) {
+  const { signal, release } = resolveSignal(opts, deadlineMillis);
+  try {
+    const res = await fetch(url, { ...init, signal });
+    const text = await res.text();
+    return { status: res.status, statusText: res.statusText, headers: res.headers, text };
+  } catch (e) {
+    release();
+    if (e instanceof NetworkError) throw e;
+    throw new NetworkError(`transport failure: ${e.message}`, e);
+  } finally {
+    release();
+  }
+}
+function mapHttpStatusError(status11, text) {
+  let problem = void 0;
+  try {
+    if (text) problem = JSON.parse(text);
+  } catch {
+  }
+  const detail = problem && (problem.detail || problem.message || problem.title) || text || `HTTP ${status11}`;
+  switch (status11) {
+    case 401:
+      return new TupagoUnauthenticatedException(grpc7.status.UNAUTHENTICATED, detail);
+    case 403:
+      return new TupagoPermissionDeniedException(grpc7.status.PERMISSION_DENIED, detail);
+    case 404:
+      return new TupagoNotFoundException(grpc7.status.NOT_FOUND, detail);
+    case 400:
+      return new TupagoInvalidArgumentException(grpc7.status.INVALID_ARGUMENT, detail, problem);
+    case 409: {
+      const type = problem && (problem.type || problem.title) || "";
+      if (type.includes("IDEMPOTENCY") || type.includes("idempotency")) {
+        return new TupagoAlreadyExistsException(grpc7.status.ALREADY_EXISTS, detail);
+      }
+      if (type.includes("POLICY") || type.includes("policy")) {
+        return new TupagoFailedPreconditionException(grpc7.status.FAILED_PRECONDITION, detail);
+      }
+      return new TupagoAlreadyExistsException(grpc7.status.ALREADY_EXISTS, detail);
+    }
+    case 202:
+      return new TupagoAbortedException(
+        grpc7.status.ABORTED,
+        `${PENDING_RECONCILIATION_CODE}: ${detail}`
+      );
+    default:
+      if (status11 >= 500) {
+        return new TupagoInternalException(grpc7.status.INTERNAL, detail);
+      }
+      return new TupagoException({
+        code: grpc7.status.UNKNOWN,
+        description: detail,
+        message: `UNKNOWN: HTTP ${status11}: ${detail}`,
+        retryable: false,
+        pendingReconciliation: false,
+        cause: problem
+      });
+  }
+}
+function networkToException(err, isCreate) {
+  if (isCreate) {
+    return new TupagoUnknownOutcomeException(
+      grpc7.status.UNKNOWN,
+      `ambiguous transport result: ${err?.message ?? err} \u2014 do not blind-resubmit; reuse the same idempotency_key or query status`,
+      err
+    );
+  }
+  return new TupagoTransientException(grpc7.status.UNAVAILABLE, `transient transport failure: ${err?.message ?? err}`, err);
+}
+function parseJsonOrFail(text, ctx) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new TupagoInvalidArgumentException(
+      grpc7.status.INVALID_ARGUMENT,
+      `malformed JSON success body in ${ctx}: ${e.message}`
+    );
+  }
+}
+function requireValue(value, ctx) {
+  if (value === null || value === void 0) {
+    throw new TupagoInvalidArgumentException(
+      grpc7.status.INVALID_ARGUMENT,
+      `unexpected empty success payload in ${ctx}`
+    );
+  }
+}
+
+// src/transport/validate.ts
+import * as grpc8 from "@grpc/grpc-js";
+function isNonEmptyString(v) {
+  return typeof v === "string" && v.trim() !== "";
+}
+function isNonZeroId(v) {
+  if (typeof v === "bigint") return v !== 0n;
+  if (typeof v === "number") return Number.isInteger(v) && v !== 0;
+  return false;
+}
+function requireNonDefaultCliente(c, ctx) {
+  if (!c || typeof c !== "object") {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: cliente missing`);
+  }
+  const cliente = c;
+  if (!isNonZeroId(cliente.id)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: cliente.id missing or defaulted to 0`);
+  }
+  if (!isNonEmptyString(cliente.nombre)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: cliente.nombre missing`);
+  }
+  if (!isNonEmptyString(cliente.claveInstitucion)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: cliente.claveInstitucion missing`);
+  }
+}
+function requireNonDefaultCatalogo(c, ctx) {
+  if (!c || typeof c !== "object") {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: catalogoInstitucion missing`);
+  }
+  const cat = c;
+  if (!isNonZeroId(cat.id)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: catalogoInstitucion.id missing or defaulted to 0`);
+  }
+  if (!isNonEmptyString(cat.claveInstitucion)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: catalogoInstitucion.claveInstitucion missing`);
+  }
+  if (!isNonEmptyString(cat.nombreCorto)) {
+    throw new TupagoInvalidArgumentException(grpc8.status.INVALID_ARGUMENT, `${ctx}: catalogoInstitucion.nombreCorto missing`);
+  }
+}
+
+// src/transport/rest.ts
+function sleep2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function validateAmount2(field, value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${field} must be a finite number (wire type is double); got ${value}`);
+  }
+}
+function createRestTransport(deps) {
+  return new RestPaymentTransport(deps);
+}
+var RestPaymentTransport = class {
+  base;
+  credentials;
+  deadlineMillis;
+  readRetryPolicy;
+  constructor(deps) {
+    if (!deps.target) throw new Error("target (REST base URL) is required");
+    if (!deps.credentials) throw new Error("credentials is required");
+    this.base = deps.target.replace(/\/+$/, "");
+    this.credentials = deps.credentials;
+    this.deadlineMillis = deps.deadlineMillis && deps.deadlineMillis > 0 ? deps.deadlineMillis : 1e4;
+    this.readRetryPolicy = deps.readRetryPolicy ?? BackoffRetryPolicy.of(3);
+  }
+  async getCliente(id, opts) {
+    const idStr = String(id);
+    return this.dispatchRead("GetCliente", opts, async () => {
+      const raw = await this.getJson(`/api/clientesadd/${encodeURIComponent(idStr)}`);
+      requireValue(raw, "getCliente");
+      const cliente = raw.cliente ?? raw;
+      requireNonDefaultCliente(cliente, "getCliente");
+      const catalogo = raw.catalogoInstitucion ?? {};
+      if (catalogo && typeof catalogo === "object" && Object.keys(catalogo).length > 0) {
+        requireNonDefaultCatalogo(catalogo, "getCliente.catalogo");
+      }
+      return ClientePerfil.fromJSON({ cliente, catalogoInstitucion: catalogo });
+    });
+  }
+  async getCatalogo(claveInstitucion, opts) {
+    const clave = claveInstitucion ?? "";
+    return this.dispatchRead("GetCatalogo", opts, async () => {
+      const raw = await this.getJson(`/api/catalogo-institucions/clave/${encodeURIComponent(clave)}`);
+      requireValue(raw, "getCatalogo");
+      requireNonDefaultCatalogo(raw, "getCatalogo");
+      return CatalogoInstitucion.fromJSON(raw);
+    });
+  }
+  async getQrStatus(idc, idCuenta, opts) {
+    return this.dispatchRead("GetQrStatus", opts, async () => {
+      const raw = await this.postJson("/api/payments/estatusmsjqr", { idc: idc ?? "" });
+      const value = parseJsonOrFail(typeof raw === "string" ? raw : JSON.stringify(raw), "getQrStatus");
+      requireValue(value, "getQrStatus");
+      return jsonResponseViewFromValue(value);
+    });
+  }
+  async getTelefonicoStatus(idc, idCuenta, opts) {
+    return this.dispatchRead("GetTelefonicoStatus", opts, async () => {
+      const raw = await this.postJson("/api/payments/estatusmsjcobrotelefonico", {
+        idMsjdeCobro: idc ?? ""
+      });
+      const value = parseJsonOrFail(typeof raw === "string" ? raw : JSON.stringify(raw), "getTelefonicoStatus");
+      requireValue(value, "getTelefonicoStatus");
+      return jsonResponseViewFromValue(value);
+    });
+  }
+  async createQr(req, opts) {
+    validateAmount2("monto", req.monto);
+    const body = {
+      idCuenta: req.idCuenta.toString(),
+      monto: req.monto,
+      concepto: req.concepto,
+      referenciaNumerica: req.referenciaNumerica,
+      nombreCliente: req.nombreCliente,
+      email: req.email,
+      tipoPago: req.tipoPago,
+      vigencia: req.vigencia
+    };
+    return this.dispatchCreate("CreateQr", opts, req.idempotencyKey, body, (payload) => {
+      const qr = payload && typeof payload === "object" && "mensaje" in payload ? payload.mensaje : payload;
+      requireValue(qr, "createQr.mensaje");
+      return jsonResponseViewFromValue(qr);
+    });
+  }
+  async createTelefonico(req, opts) {
+    validateAmount2("monto", req.monto);
+    const body = {
+      key: req.key,
+      monto: req.monto,
+      concepto: req.concepto,
+      referenciaNumerica: req.referenciaNumerica,
+      numeroCelular: req.numeroCelular,
+      vigencia: req.vigencia
+    };
+    return this.dispatchCreate("CreateTelefonico", opts, req.idempotencyKey, body, (payload) => {
+      requireValue(payload, "createTelefonico");
+      return jsonResponseViewFromValue(payload);
+    });
+  }
+  close() {
+  }
+  async getJson(path) {
+    const res = await rawFetch(
+      `${this.base}${path}`,
+      { method: "GET", headers: this.headers() },
+      void 0,
+      this.deadlineMillis
+    );
+    if (res.status >= 400) throw mapHttpStatusError(res.status, res.text);
+    return parseJsonOrFail(res.text, path);
+  }
+  async postJson(path, body, idempotencyKey) {
+    const headers = this.headers();
+    headers["Content-Type"] = "application/json";
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    const res = await rawFetch(
+      `${this.base}${path}`,
+      { method: "POST", headers, body: JSON.stringify(body) },
+      void 0,
+      this.deadlineMillis
+    );
+    if (res.status >= 400) throw mapHttpStatusError(res.status, res.text);
+    return parseJsonOrFail(res.text, path);
+  }
+  headers() {
+    return bearerHeader(this.credentials);
+  }
+  async dispatchRead(_method, opts, op) {
+    let attempt = 0;
+    for (; ; ) {
+      try {
+        return await op();
+      } catch (e) {
+        const te2 = this.toReadError(e);
+        if (this.readRetryPolicy.shouldRetry(attempt, te2)) {
+          await sleep2(this.readRetryPolicy.delayMillis(attempt));
+          attempt++;
+          continue;
+        }
+        throw te2;
+      }
+    }
+  }
+  async dispatchCreate(_method, opts, idempotencyKey, body, adapt) {
+    const path = _method === "CreateQr" ? "/api/payments/msjpagoqrusuario" : "/api/payments/msjpagotelefonicousuario";
+    try {
+      const headers = this.headers();
+      headers["Content-Type"] = "application/json";
+      headers["Idempotency-Key"] = idempotencyKey;
+      const res = await rawFetch(
+        `${this.base}${path}`,
+        { method: "POST", headers, body: JSON.stringify(body) },
+        opts,
+        this.deadlineMillis
+      );
+      if (res.status === 202) throw mapHttpStatusError(202, res.text);
+      if (res.status >= 400) throw mapHttpStatusError(res.status, res.text);
+      const payload = parseJsonOrFail(res.text, path);
+      return adapt(payload);
+    } catch (e) {
+      if (e instanceof NetworkError) throw networkToException(e, true);
+      if (e instanceof TupagoException) throw e;
+      throw new TupagoUnknownOutcomeException(grpc9.status.UNKNOWN, `ambiguous create outcome: ${e.message}`, e);
+    }
+  }
+  toReadError(e) {
+    if (e instanceof TupagoException) return e;
+    if (e instanceof NetworkError) return networkToException(e, false);
+    return new TupagoException({
+      code: grpc9.status.UNKNOWN,
+      description: e?.message ?? String(e),
+      message: `UNKNOWN: ${e?.message ?? e}`,
+      retryable: false,
+      pendingReconciliation: false,
+      cause: e
+    });
+  }
+};
+
+// src/transport/graphql.ts
+import * as grpc10 from "@grpc/grpc-js";
+var GQL_PENDING_CODE = "PAYMENT_PENDING_RECONCILIATION";
+var ALIAS = "q";
+function sleep3(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function validateAmount3(field, value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${field} must be a finite number (wire type is double); got ${value}`);
+  }
+}
+function createGraphqlTransport(deps) {
+  return new GraphqlPaymentTransport(deps);
+}
+var GraphqlPaymentTransport = class {
+  base;
+  credentials;
+  deadlineMillis;
+  readRetryPolicy;
+  constructor(deps) {
+    if (!deps.target) throw new Error("target (GraphQL base URL) is required");
+    if (!deps.credentials) throw new Error("credentials is required");
+    this.base = deps.target.replace(/\/+$/, "");
+    this.credentials = deps.credentials;
+    this.deadlineMillis = deps.deadlineMillis && deps.deadlineMillis > 0 ? deps.deadlineMillis : 1e4;
+    this.readRetryPolicy = deps.readRetryPolicy ?? BackoffRetryPolicy.of(3);
+  }
+  // ---- reads (transient-retryable) ----
+  async getCliente(id, opts) {
+    const query = `query($id:ID!){ ${ALIAS}: cliente(id:$id){ cliente{ id nombre claveInstitucion key } catalogoInstitucion{ id claveInstitucion nombreCorto } } }`;
+    return this.dispatchRead("GetCliente", opts, { query, variables: { id: String(id) } }, (data) => {
+      requireValue(data?.cliente, "getCliente.cliente");
+      requireValue(data?.catalogoInstitucion, "getCliente.catalogoInstitucion");
+      const perfil = ClientePerfil.fromJSON({ cliente: data.cliente, catalogoInstitucion: data.catalogoInstitucion });
+      requireNonDefaultCliente(perfil.cliente, "getCliente");
+      requireNonDefaultCatalogo(perfil.catalogoInstitucion, "getCliente");
+      return perfil;
+    });
+  }
+  async getCatalogo(claveInstitucion, opts) {
+    const query = `query($c:String!){ ${ALIAS}: catalogoInstitucion(claveInstitucion:$c){ id claveInstitucion nombreCorto } }`;
+    return this.dispatchRead("GetCatalogo", opts, { query, variables: { c: claveInstitucion ?? "" } }, (data) => {
+      requireValue(data, "getCatalogo");
+      const cat = CatalogoInstitucion.fromJSON(data);
+      requireNonDefaultCatalogo(cat, "getCatalogo");
+      return cat;
+    });
+  }
+  async getQrStatus(idc, idCuenta, opts) {
+    const query = `query($idc:String!,$idCuenta:ID!){ ${ALIAS}: pagoQrEstatusByCuenta(idc:$idc,idCuenta:$idCuenta) }`;
+    return this.dispatchRead(
+      "GetQrStatus",
+      opts,
+      { query, variables: { idc: idc ?? "", idCuenta: String(idCuenta) } },
+      (data) => jsonResponseViewFromValue(data)
+    );
+  }
+  async getTelefonicoStatus(idc, idCuenta, opts) {
+    const query = `query($idc:String!,$idCuenta:ID!){ ${ALIAS}: pagoTelefonicoEstatusByCuenta(idc:$idc,idCuenta:$idCuenta) }`;
+    return this.dispatchRead(
+      "GetTelefonicoStatus",
+      opts,
+      { query, variables: { idc: idc ?? "", idCuenta: String(idCuenta) } },
+      (data) => jsonResponseViewFromValue(data)
+    );
+  }
+  // ---- creates (NEVER auto-retried) ----
+  async createQr(req, opts) {
+    validateAmount3("monto", req.monto);
+    const query = `mutation($in:PagoQrInput!,$k:String){ ${ALIAS}: createPagoQr(input:$in,idempotencyKey:$k) }`;
+    const input = {
+      idCuenta: String(req.idCuenta),
+      monto: req.monto,
+      concepto: req.concepto,
+      referenciaNumerica: req.referenciaNumerica,
+      nombreCliente: req.nombreCliente,
+      email: req.email,
+      tipoPago: req.tipoPago,
+      vigencia: req.vigencia
+    };
+    return this.dispatchCreate(
+      "CreateQr",
+      opts,
+      { query, variables: { in: input, k: req.idempotencyKey } },
+      (data) => jsonResponseViewFromValue(data)
+    );
+  }
+  async createTelefonico(req, opts) {
+    validateAmount3("monto", req.monto);
+    const query = `mutation($in:PagoTelefonicoInput!,$k:String){ ${ALIAS}: createPagoTelefonico(input:$in,idempotencyKey:$k) }`;
+    const input = {
+      key: req.key,
+      monto: req.monto,
+      concepto: req.concepto,
+      referenciaNumerica: req.referenciaNumerica,
+      numeroCelular: req.numeroCelular,
+      vigencia: req.vigencia
+    };
+    return this.dispatchCreate(
+      "CreateTelefonico",
+      opts,
+      { query, variables: { in: input, k: req.idempotencyKey } },
+      (data) => jsonResponseViewFromValue(data)
+    );
+  }
+  close() {
+  }
+  // ---- internals ----
+  async post(body, opts) {
+    const headers = bearerHeader(this.credentials);
+    headers["Content-Type"] = "application/json";
+    const res = await rawFetch(
+      `${this.base}/graphql`,
+      { method: "POST", headers, body: JSON.stringify(body) },
+      opts,
+      this.deadlineMillis
+    );
+    if (res.status >= 400) throw mapHttpStatusError(res.status, res.text);
+    return parseJsonOrFail(res.text, "graphql");
+  }
+  resultOrThrow(payload, _isCreate) {
+    if (payload && Array.isArray(payload.errors) && payload.errors.length > 0) {
+      const pending = payload.errors.find((e) => e?.extensions?.code === GQL_PENDING_CODE);
+      if (pending) {
+        throw new TupagoAbortedException(
+          grpc10.status.ABORTED,
+          `${PENDING_RECONCILIATION_CODE}: ${pending.message ?? "payment pending reconciliation"}`
+        );
+      }
+      throw mapGraphQLError(payload.errors);
+    }
+    if (payload == null || typeof payload !== "object" || !("data" in payload) || payload.data == null) {
+      throw new TupagoInvalidArgumentException(grpc10.status.INVALID_ARGUMENT, "GraphQL response missing data envelope");
+    }
+    return payload.data[ALIAS];
+  }
+  async dispatchRead(_method, opts, body, adapt) {
+    let attempt = 0;
+    for (; ; ) {
+      try {
+        const payload = await this.post(body, opts);
+        return adapt(this.resultOrThrow(payload, false));
+      } catch (e) {
+        const te2 = this.normalizeReadError(e);
+        if (this.readRetryPolicy.shouldRetry(attempt, te2)) {
+          await sleep3(this.readRetryPolicy.delayMillis(attempt));
+          attempt++;
+          continue;
+        }
+        throw te2;
+      }
+    }
+  }
+  async dispatchCreate(_method, opts, body, adapt) {
+    try {
+      const payload = await this.post(body, opts);
+      return adapt(this.resultOrThrow(payload, true));
+    } catch (e) {
+      if (e instanceof NetworkError) throw networkToException(e, true);
+      if (e instanceof TupagoException) throw e;
+      throw new TupagoUnknownOutcomeException(
+        grpc10.status.UNKNOWN,
+        `ambiguous create outcome: ${e?.message ?? e}`,
+        e
+      );
+    }
+  }
+  /**
+   * Normalize any read failure into a {@link TupagoException} so the configured readRetryPolicy can
+   * make a single, uniform retry decision. A transport/network failure (NetworkError) becomes a
+   * retryable TransientException; this is what makes GraphQL reads retry transient failures through
+   * BackoffRetryPolicy (mirroring the REST transport's toReadError). Creates do NOT use this path.
+   */
+  normalizeReadError(e) {
+    if (e instanceof NetworkError) return networkToException(e, false);
+    if (e instanceof TupagoException) return e;
+    return new TupagoInvalidArgumentException(
+      grpc10.status.INVALID_ARGUMENT,
+      `unexpected read failure: ${e?.message ?? e}`,
+      e
+    );
+  }
+};
+function mapGraphQLError(errors) {
+  const e0 = errors[0] ?? {};
+  const code = e0?.extensions?.code ?? e0?.extensions?.classification ?? "";
+  const msg = e0?.message ?? "GraphQL error";
+  if (code === "UNAUTHENTICATED" || /unauth/i.test(msg)) {
+    return new TupagoUnauthenticatedException(grpc10.status.UNAUTHENTICATED, msg);
+  }
+  if (code === "NOT_FOUND" || /not found/i.test(msg)) {
+    return new TupagoNotFoundException(grpc10.status.NOT_FOUND, msg);
+  }
+  if (code === "INTERNAL" || /internal/i.test(msg)) {
+    return new TupagoInternalException(grpc10.status.INTERNAL, msg);
+  }
+  return new TupagoInvalidArgumentException(grpc10.status.INVALID_ARGUMENT, msg);
+}
+
+// src/auth/BearerCallCredentials.ts
+import * as grpc11 from "@grpc/grpc-js";
 var BearerCallCredentials = class _BearerCallCredentials {
   /** Metadata key expected by the backend (ASCII, lowercase). */
   static AUTHORIZATION = "authorization";
   static create(provider) {
-    return grpc7.credentials.createFromMetadataGenerator((_params, callback) => {
+    return grpc11.credentials.createFromMetadataGenerator((_params, callback) => {
       const token = provider.token();
       if (token == null || token.trim() === "") {
-        callback(
-          new Error("No bearer token supplied by CredentialProvider"),
-          void 0
-        );
+        const err = new Error("No bearer token supplied by CredentialProvider");
+        err.code = grpc11.status.UNAUTHENTICATED;
+        callback(err, void 0);
         return;
       }
-      const metadata = new grpc7.Metadata();
+      const metadata = new grpc11.Metadata();
       metadata.set(_BearerCallCredentials.AUTHORIZATION, `Bearer ${token}`);
       callback(null, metadata);
     });
@@ -2342,10 +2924,13 @@ export {
   GetCatalogoRequest,
   GetClienteRequest,
   GetStatusRequest,
+  GraphqlPaymentTransport,
+  GrpcPaymentTransport,
   JsonResponse,
   JsonResponseView,
   NoRetryPolicy,
   PENDING_RECONCILIATION_CODE,
+  RestPaymentTransport,
   StatusMapper,
   TlsConfig,
   TupagoAbortedException,
@@ -2359,6 +2944,8 @@ export {
   TupagoPermissionDeniedException,
   TupagoTransientException,
   TupagoUnauthenticatedException,
-  TupagoUnknownOutcomeException
+  TupagoUnknownOutcomeException,
+  createGraphqlTransport,
+  createRestTransport
 };
 //# sourceMappingURL=index.mjs.map

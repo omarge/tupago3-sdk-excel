@@ -1,85 +1,5 @@
-import { BinaryWriter, BinaryReader } from '@bufbuild/protobuf/wire';
 import * as grpc from '@grpc/grpc-js';
-
-interface GetClienteRequest {
-    id: bigint;
-}
-declare const GetClienteRequest: MessageFns<GetClienteRequest>;
-interface GetCatalogoRequest {
-    claveInstitucion: string;
-}
-declare const GetCatalogoRequest: MessageFns<GetCatalogoRequest>;
-interface GetStatusRequest {
-    idc: string;
-    idCuenta: bigint;
-}
-declare const GetStatusRequest: MessageFns<GetStatusRequest>;
-interface CreateQrRequest {
-    idCuenta: bigint;
-    monto: number;
-    concepto: string;
-    referenciaNumerica: number;
-    nombreCliente: string;
-    email: string;
-    tipoPago: number;
-    vigencia: number;
-    idempotencyKey: string;
-}
-declare const CreateQrRequest: MessageFns<CreateQrRequest>;
-interface CreateTelefonicoRequest {
-    key: string;
-    monto: number;
-    concepto: string;
-    referenciaNumerica: number;
-    numeroCelular: string;
-    vigencia: number;
-    idempotencyKey: string;
-}
-declare const CreateTelefonicoRequest: MessageFns<CreateTelefonicoRequest>;
-interface ClientePerfil {
-    cliente?: Cliente | undefined;
-    catalogoInstitucion?: CatalogoInstitucion | undefined;
-}
-declare const ClientePerfil: MessageFns<ClientePerfil>;
-interface Cliente {
-    id: bigint;
-    nombre: string;
-    claveInstitucion: string;
-    key: string;
-}
-declare const Cliente: MessageFns<Cliente>;
-interface CatalogoInstitucion {
-    id: bigint;
-    claveInstitucion: string;
-    nombreCorto: string;
-}
-declare const CatalogoInstitucion: MessageFns<CatalogoInstitucion>;
-/**
- * Raw Banxico payloads (status + create responses) are returned as JSON strings so the
- * gRPC contract is a structural/transport peer of REST/GraphQL (same bytes).
- */
-interface JsonResponse {
-    json: string;
-}
-declare const JsonResponse: MessageFns<JsonResponse>;
-type Builtin = Date | Function | Uint8Array | string | number | boolean | bigint | undefined;
-type DeepPartial<T> = T extends bigint ? string | number | bigint : T extends Builtin ? T : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>> : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>> : T extends {} ? {
-    [K in keyof T]?: DeepPartial<T[K]>;
-} : Partial<T>;
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-type Exact<P, I extends P> = P extends Builtin ? P : P & {
-    [K in keyof P]: Exact<P[K], I[K]>;
-} & {
-    [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-};
-interface MessageFns<T> {
-    encode(message: T, writer?: BinaryWriter): BinaryWriter;
-    decode(input: BinaryReader | Uint8Array, length?: number): T;
-    fromJSON(object: any): T;
-    toJSON(message: T): unknown;
-    create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
-    fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
-}
+import { BinaryWriter, BinaryReader } from '@bufbuild/protobuf/wire';
 
 /**
  * Supplies the current Bearer JWT for every RPC. Implementations obtain the token from an
@@ -264,6 +184,86 @@ interface CallOptions {
     deadlineMillis?: number;
 }
 
+interface GetClienteRequest {
+    id: bigint;
+}
+declare const GetClienteRequest: MessageFns<GetClienteRequest>;
+interface GetCatalogoRequest {
+    claveInstitucion: string;
+}
+declare const GetCatalogoRequest: MessageFns<GetCatalogoRequest>;
+interface GetStatusRequest {
+    idc: string;
+    idCuenta: bigint;
+}
+declare const GetStatusRequest: MessageFns<GetStatusRequest>;
+interface CreateQrRequest {
+    idCuenta: bigint;
+    monto: number;
+    concepto: string;
+    referenciaNumerica: number;
+    nombreCliente: string;
+    email: string;
+    tipoPago: number;
+    vigencia: number;
+    idempotencyKey: string;
+}
+declare const CreateQrRequest: MessageFns<CreateQrRequest>;
+interface CreateTelefonicoRequest {
+    key: string;
+    monto: number;
+    concepto: string;
+    referenciaNumerica: number;
+    numeroCelular: string;
+    vigencia: number;
+    idempotencyKey: string;
+}
+declare const CreateTelefonicoRequest: MessageFns<CreateTelefonicoRequest>;
+interface ClientePerfil {
+    cliente?: Cliente | undefined;
+    catalogoInstitucion?: CatalogoInstitucion | undefined;
+}
+declare const ClientePerfil: MessageFns<ClientePerfil>;
+interface Cliente {
+    id: bigint;
+    nombre: string;
+    claveInstitucion: string;
+    key: string;
+}
+declare const Cliente: MessageFns<Cliente>;
+interface CatalogoInstitucion {
+    id: bigint;
+    claveInstitucion: string;
+    nombreCorto: string;
+}
+declare const CatalogoInstitucion: MessageFns<CatalogoInstitucion>;
+/**
+ * Raw Banxico payloads (status + create responses) are returned as JSON strings so the
+ * gRPC contract is a structural/transport peer of REST/GraphQL (same bytes).
+ */
+interface JsonResponse {
+    json: string;
+}
+declare const JsonResponse: MessageFns<JsonResponse>;
+type Builtin = Date | Function | Uint8Array | string | number | boolean | bigint | undefined;
+type DeepPartial<T> = T extends bigint ? string | number | bigint : T extends Builtin ? T : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>> : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>> : T extends {} ? {
+    [K in keyof T]?: DeepPartial<T[K]>;
+} : Partial<T>;
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+type Exact<P, I extends P> = P extends Builtin ? P : P & {
+    [K in keyof P]: Exact<P[K], I[K]>;
+} & {
+    [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
+};
+interface MessageFns<T> {
+    encode(message: T, writer?: BinaryWriter): BinaryWriter;
+    decode(input: BinaryReader | Uint8Array, length?: number): T;
+    fromJSON(object: any): T;
+    toJSON(message: T): unknown;
+    create<I extends Exact<DeepPartial<T>, I>>(base?: I): T;
+    fromPartial<I extends Exact<DeepPartial<T>, I>>(object: I): T;
+}
+
 /**
  * Convenience view over the raw Banxico {@link JsonResponse} returned by status/create RPCs.
  * The SDK never assumes a fixed JSON shape (contract: lossless passthrough); callers may read
@@ -283,23 +283,52 @@ declare class JsonResponseView {
 }
 
 /**
- * Async gRPC client for the TUPAGO3 {@code PaymentService}, generated 1:1 from the frozen
- * backend contract (payment.proto, backend3 22ad947). The public surface is 1:1 with the six
- * RPCs. Create operations use {@link NoRetryPolicy} (gate G4); read operations use the
- * configured {@link RetryPolicy} (transient-only).
+ * Transport-neutral contract for the six TUPAGO3 payment operations.
+ *
+ * Every transport (gRPC / REST / GraphQL) implements this interface and returns the SAME
+ * core domain types (ClientePerfil, CatalogoInstitucion, JsonResponseView). This is the
+ * semantic authority: a transport only adapts the wire format to/from these types and must
+ * enforce the financial-safety laws (bearer auth, caller-owned idempotency key, no blind
+ * retry on creates, PendingReconciliation, fail-closed on malformed responses).
+ */
+
+interface TransportDeps {
+    /** gRPC: host:port. REST: base URL e.g. http://127.0.0.1:8092. GraphQL: /graphql endpoint. */
+    target: string;
+    credentials: CredentialProvider;
+    deadlineMillis?: number;
+    readRetryPolicy?: RetryPolicy;
+}
+interface PaymentTransport {
+    getCliente(id: bigint, opts?: CallOptions): Promise<ClientePerfil>;
+    getCatalogo(claveInstitucion: string, opts?: CallOptions): Promise<CatalogoInstitucion>;
+    getQrStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    getTelefonicoStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    createQr(req: CreateQrParams, opts?: CallOptions): Promise<JsonResponseView>;
+    createTelefonico(req: CreateTelefonicoParams, opts?: CallOptions): Promise<JsonResponseView>;
+    close(): void;
+}
+
+/**
+ * Public, transport-neutral entry point for the six TUPAGO3 payment operations.
+ *
+ * By default it builds a gRPC transport (the original, GREEN behavior). It also accepts an
+ * explicit {@link PaymentTransport} so the same six-method surface works over REST or GraphQL
+ * without any change to calling code. All transports return the SAME core domain types
+ * (ClientePerfil, CatalogoInstitucion, JsonResponseView) and enforce the same financial-safety
+ * laws: bearer auth, caller-owned idempotency key, no blind retry on creates, PendingReconciliation,
+ * and fail-closed validation.
  */
 declare class TupagoPaymentClient {
-    private readonly client;
-    private readonly credentialProvider;
-    private readonly deadlineMillis;
-    private readonly readRetryPolicy;
-    private closed;
+    private readonly transport;
     constructor(opts: {
         target: string;
         credentials: CredentialProvider;
         tls?: TlsConfig;
         deadlineMillis?: number;
         readRetryPolicy?: RetryPolicy;
+        /** Build on a specific transport (REST/GraphQL). Omit to use the default gRPC transport. */
+        transport?: PaymentTransport;
     });
     /** Profile + institution catalog. */
     getCliente(id: bigint, opts?: CallOptions): Promise<ClientePerfil>;
@@ -321,18 +350,85 @@ declare class TupagoPaymentClient {
      * policy as createQr.
      */
     createTelefonico(req: CreateTelefonicoParams, opts?: CallOptions): Promise<JsonResponseView>;
-    /** Shut down the underlying channel (gate G10). Idempotent. */
+    /** Shut down the underlying transport (gate G10). Idempotent. */
+    close(): void;
+}
+
+declare function createRestTransport(deps: TransportDeps): RestPaymentTransport;
+declare class RestPaymentTransport implements PaymentTransport {
+    private readonly base;
+    private readonly credentials;
+    private readonly deadlineMillis;
+    private readonly readRetryPolicy;
+    constructor(deps: TransportDeps);
+    getCliente(id: bigint, opts?: CallOptions): Promise<ClientePerfil>;
+    getCatalogo(claveInstitucion: string, opts?: CallOptions): Promise<CatalogoInstitucion>;
+    getQrStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    getTelefonicoStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    createQr(req: CreateQrParams, opts?: CallOptions): Promise<JsonResponseView>;
+    createTelefonico(req: CreateTelefonicoParams, opts?: CallOptions): Promise<JsonResponseView>;
+    close(): void;
+    private getJson;
+    private postJson;
+    private headers;
+    private dispatchRead;
+    private dispatchCreate;
+    private toReadError;
+}
+
+declare class GrpcPaymentTransport implements PaymentTransport {
+    private readonly client;
+    private readonly credentialProvider;
+    private readonly deadlineMillis;
+    private readonly readRetryPolicy;
+    private closed;
+    constructor(opts: {
+        target: string;
+        credentials: CredentialProvider;
+        tls?: TlsConfig;
+        deadlineMillis?: number;
+        readRetryPolicy?: RetryPolicy;
+    });
+    getCliente(id: bigint, opts?: CallOptions): Promise<ClientePerfil>;
+    getCatalogo(claveInstitucion: string, opts?: CallOptions): Promise<CatalogoInstitucion>;
+    getQrStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    getTelefonicoStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    createQr(req: CreateQrParams, opts?: CallOptions): Promise<JsonResponseView>;
+    createTelefonico(req: CreateTelefonicoParams, opts?: CallOptions): Promise<JsonResponseView>;
     close(): void;
     private executeRead;
     private executeReadView;
-    /**
-     * Execute a CREATE operation. NoRetryPolicy is enforced (gate G4). Crucially, a transient
-     * transport error on a financial create is reclassified as an UNKNOWN OUTCOME (non-retryable)
-     * so the caller can never blind-resubmit (correction #3).
-     */
     private executeFinancial;
     private executeFinancialView;
     private unary;
+}
+
+/** Convenience factory mirroring the gRPC/REST construction. `target` is the base URL. */
+declare function createGraphqlTransport(deps: TransportDeps): GraphqlPaymentTransport;
+declare class GraphqlPaymentTransport implements PaymentTransport {
+    private readonly base;
+    private readonly credentials;
+    private readonly deadlineMillis;
+    private readonly readRetryPolicy;
+    constructor(deps: TransportDeps);
+    getCliente(id: bigint, opts?: CallOptions): Promise<ClientePerfil>;
+    getCatalogo(claveInstitucion: string, opts?: CallOptions): Promise<CatalogoInstitucion>;
+    getQrStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    getTelefonicoStatus(idc: string, idCuenta: bigint, opts?: CallOptions): Promise<JsonResponseView>;
+    createQr(req: CreateQrParams, opts?: CallOptions): Promise<JsonResponseView>;
+    createTelefonico(req: CreateTelefonicoParams, opts?: CallOptions): Promise<JsonResponseView>;
+    close(): void;
+    private post;
+    private resultOrThrow;
+    private dispatchRead;
+    private dispatchCreate;
+    /**
+     * Normalize any read failure into a {@link TupagoException} so the configured readRetryPolicy can
+     * make a single, uniform retry decision. A transport/network failure (NetworkError) becomes a
+     * retryable TransientException; this is what makes GraphQL reads retry transient failures through
+     * BackoffRetryPolicy (mirroring the REST transport's toReadError). Creates do NOT use this path.
+     */
+    private normalizeReadError;
 }
 
 /** Absent result (backend -> NOT_FOUND). Never auto-retried. */
@@ -403,4 +499,4 @@ declare class StatusMapper {
     static map(err: unknown): TupagoException;
 }
 
-export { BackoffRetryPolicy, BearerCallCredentials, type CallOptions, CatalogoInstitucion, ChannelSecurity, Cliente, ClientePerfil, type CreateQrParams, CreateQrRequest, type CreateTelefonicoParams, CreateTelefonicoRequest, type CredentialProvider, GetCatalogoRequest, GetClienteRequest, GetStatusRequest, JsonResponse, JsonResponseView, NoRetryPolicy, PENDING_RECONCILIATION_CODE, type RetryPolicy, StatusMapper, TlsConfig, TupagoAbortedException, TupagoAlreadyExistsException, TupagoException, TupagoFailedPreconditionException, TupagoInternalException, TupagoInvalidArgumentException, TupagoNotFoundException, TupagoPaymentClient, TupagoPermissionDeniedException, TupagoTransientException, TupagoUnauthenticatedException, TupagoUnknownOutcomeException };
+export { BackoffRetryPolicy, BearerCallCredentials, type CallOptions, CatalogoInstitucion, ChannelSecurity, Cliente, ClientePerfil, type CreateQrParams, CreateQrRequest, type CreateTelefonicoParams, CreateTelefonicoRequest, type CredentialProvider, GetCatalogoRequest, GetClienteRequest, GetStatusRequest, GraphqlPaymentTransport, GrpcPaymentTransport, JsonResponse, JsonResponseView, NoRetryPolicy, PENDING_RECONCILIATION_CODE, type PaymentTransport, RestPaymentTransport, type RetryPolicy, StatusMapper, TlsConfig, type TransportDeps, TupagoAbortedException, TupagoAlreadyExistsException, TupagoException, TupagoFailedPreconditionException, TupagoInternalException, TupagoInvalidArgumentException, TupagoNotFoundException, TupagoPaymentClient, TupagoPermissionDeniedException, TupagoTransientException, TupagoUnauthenticatedException, TupagoUnknownOutcomeException, createGraphqlTransport, createRestTransport };
