@@ -39,8 +39,8 @@ jobs:
       - name: Verify no Create endpoints in gateway
         run: npx tsx scripts/verify-no-create.mts
 
-      - name: Dependency audit
-        run: npm audit --audit-level=high || true
+      - name: Dependency audit (production, blocking high/critical)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Package (reproducible internal distribution)
         run: npm run pack
