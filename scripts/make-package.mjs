@@ -12,7 +12,8 @@ mkdirSync(out, { recursive: true });
 mkdirSync(join(out, "wwwroot"), { recursive: true });
 
 // Copy build output
-if (existsSync(join(root, "dist"))) cpSync(join(root, "dist"), join(out, "wwwroot"), { recursive: true });
+if (!existsSync(join(root, "dist"))) throw new Error("Missing dist/ output: run build before packaging");
+cpSync(join(root, "dist"), join(out, "wwwroot"), { recursive: true });
 // Copy distribution artifacts
 for (const f of ["manifest.xml", "README.md", "LICENSE"]) {
   if (existsSync(join(root, f))) cpSync(join(root, f), join(out, f));
@@ -29,7 +30,7 @@ function hashFile(p) {
 }
 
 function walk(dir, cb) {
-  for (const entry of readdirSync(dir)) {
+  for (const entry of readdirSync(dir).sort()) {
     const p = join(dir, entry);
     const s = statSync(p);
     if (s.isDirectory()) walk(p, cb);
@@ -37,7 +38,7 @@ function walk(dir, cb) {
   }
 }
 
-const manifestLines = ["TUPAGO3 SDK EXCEL — PACKAGE MANIFEST", `generated: ${new Date().toISOString()}`, ""];
+const manifestLines = ["TUPAGO3 SDK EXCEL — PACKAGE MANIFEST", ""];
 walk(out, (p) => {
   const rel = relative(out, p).split(/[\\/]/).join("/");
   const hex = hashFile(p);
@@ -52,7 +53,11 @@ manifestLines.push("");
 manifestLines.push(secretHits === 0 ? "secret-scan: PASS (no secrets detected)" : `secret-scan: FAIL (${secretHits} hit(s))`);
 writeFileSync(join(out, "PACKAGE-MANIFEST.txt"), manifestLines.join("\n"));
 
-console.log(`Package written to dist-package/ (${secretHits === 0 ? "secret scan PASS" : "secret scan FAIL"})`);
+if (secretHits > 0) {
+  rmSync(out, { recursive: true, force: true });
+  throw new Error(`Package secret scan failed: ${secretHits} hit(s)`);
+}
+console.log("Package written to dist-package/ (secret scan PASS)");
 
 // Remove selfsigned-generated artifacts from package if present
 for (const f of ["gateway/certs"]) {
