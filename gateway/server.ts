@@ -9,7 +9,7 @@ import { createProxy } from "./proxy.js";
 import { loadConfig, type GatewayConfig } from "./config.js";
 import { redactSecrets, safeLog } from "../src/security/redact.js";
 
-async function backend3Authenticate(authUrl: string, username: string, password: string): Promise<AuthResult> {
+export async function backend3Authenticate(authUrl: string, username: string, password: string): Promise<AuthResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
@@ -17,8 +17,10 @@ async function backend3Authenticate(authUrl: string, username: string, password:
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ username, password }),
+      redirect: "manual",
       signal: controller.signal,
     });
+    if (res.status >= 300 && res.status < 400) throw new Error("auth redirect rejected");
     const text = await res.text();
     if (!res.ok) throw new Error("auth failed");
     const body = JSON.parse(text) as { id_token?: string; expiresAt?: number };
@@ -113,6 +115,15 @@ export function validateProductionConfig(config: GatewayConfig): void {
   }
   if (!process.env.GATEWAY_TLS_CERT || !process.env.GATEWAY_TLS_KEY) {
     throw new Error("NODE_ENV=production requires GATEWAY_TLS_CERT and GATEWAY_TLS_KEY (trusted CA certificate).");
+  }
+  let authUrl: URL;
+  try {
+    authUrl = new URL(config.backend3AuthUrl);
+  } catch {
+    throw new Error("NODE_ENV=production requires BACKEND3_AUTH_URL to be a valid HTTPS URL.");
+  }
+  if (authUrl.protocol !== "https:" || authUrl.username || authUrl.password) {
+    throw new Error("NODE_ENV=production requires BACKEND3_AUTH_URL to use HTTPS without embedded credentials.");
   }
 }
 

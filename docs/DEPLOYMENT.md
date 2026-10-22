@@ -40,7 +40,7 @@
 | `GATEWAY_ALLOW_INSECURE` | `1` (permitido en dev) | **no definir** |
 | `GATEWAY_CORS_ORIGINS` | `https://localhost:8443` | `https://excel.tupago3.example` |
 | `BACKEND3_GRPC_TARGET` | `127.0.0.1:9090` | destino gRPC de producción |
-| `BACKEND3_AUTH_URL` | `http://localhost:8091/api/authenticate` | URL auth de producción |
+| `BACKEND3_AUTH_URL` | `http://localhost:8091/api/authenticate` | URL HTTPS de auth, sin credenciales embebidas |
 
 Plantilla (NO commitear con valores reales; `.env` y `.env.*` ya están en `.gitignore`):
 
@@ -64,7 +64,8 @@ BACKEND3_AUTH_URL=https://backend3.tupago3.example/api/authenticate
   `https://localhost:8443` (o override en `localStorage`).
 - **DISTRIBUCIÓN**: `NODE_ENV=production`, TLS con certificado de CA, `GATEWAY_ALLOW_INSECURE`
   ausente. `validateProductionConfig` **rechaza el arranque** si falta TLS, hay
-  `GATEWAY_ALLOW_INSECURE=1`, o no se proveen `GATEWAY_TLS_CERT`/`GATEWAY_TLS_KEY`.
+  `GATEWAY_ALLOW_INSECURE=1`, no se proveen `GATEWAY_TLS_CERT`/`GATEWAY_TLS_KEY`, o
+  `BACKEND3_AUTH_URL` no usa HTTPS.
   Esto impide que una configuración permisiva de laboratorio se envíe como producción.
 - El mismo binario/server se usa en ambos; la diferencia es 100% configuración por entorno.
 
@@ -113,6 +114,7 @@ Para distribución, reemplaza `dist-package/manifest.xml` por la versión del do
   rechazan HTTP, userinfo en URL, fragmentos, rutas inesperadas, subdominios engañosos,
   puertos distintos y redirecciones (login/Bearer no se siguen a otros orígenes).
 - Claves privadas TLS: fuera del repo, solo rutas en env. `.env`/`.env.*` en `.gitignore`.
+- `BACKEND3_AUTH_URL` debe usar HTTPS en producción; los redirects del login upstream se rechazan.
 - JWT en memoria (`src/auth/session.ts`); no `localStorage` persistente ni logs.
 - CORS allow-list no sustituye autenticación Bearer; rate-limit dedicado en `/v1/login`.
 - Validación estricta de entradas (`assertSafeIdentifier`); int64 como texto; sin inyección
