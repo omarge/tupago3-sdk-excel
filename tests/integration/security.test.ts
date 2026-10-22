@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import type { AddressInfo } from "node:net";
 import { createApp, collectRoutes, assertSafeIdentifier, type AppDeps } from "../../gateway/app.js";
-import { validateProductionConfig } from "../../gateway/server.js";
+import { backend3Authenticate, validateProductionConfig } from "../../gateway/server.js";
 import { createProxy } from "../../gateway/proxy.js";
 import type { GatewayConfig } from "../../gateway/config.js";
 
@@ -111,8 +111,20 @@ describe("T29 NoCreateEndpoints", () => {
 
 // T34 — Production config guard (G3: dev config cannot ship as prod)
 describe("T34 ProductionConfigGuard", () => {
-  const prev = process.env.NODE_ENV;
-  afterEach(() => { process.env.NODE_ENV = prev; });
+  const prev = {
+    nodeEnv: process.env.NODE_ENV,
+    tlsCert: process.env.GATEWAY_TLS_CERT,
+    tlsKey: process.env.GATEWAY_TLS_KEY,
+  };
+  afterEach(() => {
+    if (prev.nodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prev.nodeEnv;
+    if (prev.tlsCert === undefined) delete process.env.GATEWAY_TLS_CERT;
+    else process.env.GATEWAY_TLS_CERT = prev.tlsCert;
+    if (prev.tlsKey === undefined) delete process.env.GATEWAY_TLS_KEY;
+    else process.env.GATEWAY_TLS_KEY = prev.tlsKey;
+    vi.unstubAllGlobals();
+  });
 
   it("allows non-production config", () => {
     process.env.NODE_ENV = "development";
@@ -132,11 +144,48 @@ describe("T34 ProductionConfigGuard", () => {
     delete process.env.GATEWAY_TLS_KEY;
     expect(() => validateProductionConfig({ ...config, enableTls: true, allowInsecure: false })).toThrow(/GATEWAY_TLS_CERT/);
   });
+  it("refuses production when the upstream authentication URL uses HTTP", () => {
+    process.env.NODE_ENV = "production";
+    process.env.GATEWAY_TLS_CERT = "/etc/tupago/gateway/fullchain.pem";
+    process.env.GATEWAY_TLS_KEY = "/etc/tupago/gateway/privkey.pem";
+    expect(() =>
+      validateProductionConfig({
+        ...config,
+        backend3AuthUrl: "http://auth.example.test/api/authenticate",
+        enableTls: true,
+        allowInsecure: false,
+      }),
+    ).toThrow(/BACKEND3_AUTH_URL.*HTTPS/);
+  });
   it("allows production with TLS, no insecure flag and a trusted CA certificate", () => {
     process.env.NODE_ENV = "production";
     process.env.GATEWAY_TLS_CERT = "/etc/tupago/gateway/fullchain.pem";
     process.env.GATEWAY_TLS_KEY = "/etc/tupago/gateway/privkey.pem";
-    expect(() => validateProductionConfig({ ...config, enableTls: true, allowInsecure: false })).not.toThrow();
+    expect(() =>
+      validateProductionConfig({
+        ...config,
+        backend3AuthUrl: "https://auth.example.test/api/authenticate",
+        enableTls: true,
+        allowInsecure: false,
+      }),
+    ).not.toThrow();
+  });
+  it("does not follow an upstream authentication redirect", async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 307,
+      text: async () => "",
+    } as unknown as Response));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      backend3Authenticate("https://auth.example.test/api/authenticate", "user", "password"),
+    ).rejects.toThrow("auth redirect rejected");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://auth.example.test/api/authenticate",
+      expect.objectContaining({ redirect: "manual" }),
+    );
   });
 });
 
